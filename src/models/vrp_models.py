@@ -57,6 +57,12 @@ class Route(BaseModel):
     delivery_duration: int = 0
 
 
+class VRPMetadata(BaseModel):
+    solve_time_seconds: float
+    algorithm: str = "OR-Tools"
+    objective_value: Optional[int] = None
+
+
 class VRPOutput(BaseModel):
     total_delivery_duration: int
     routes: Dict[str, Route]
