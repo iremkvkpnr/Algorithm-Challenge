@@ -1,4 +1,4 @@
-"""FastAPI microservice modülü."""
+"""FastAPI microservice module."""
 
 from .main import app
 
