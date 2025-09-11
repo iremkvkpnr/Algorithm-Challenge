@@ -1,8 +1,10 @@
-from typing import List, Optional, Dict
+"""Input DTOs for VRP API requests."""
+
+from typing import List, Optional
 from pydantic import BaseModel, validator
 
 
-class Vehicle(BaseModel):
+class VehicleDTO(BaseModel):
     id: int
     start_index: int
     capacity: Optional[List[int]] = None
@@ -14,7 +16,7 @@ class Vehicle(BaseModel):
         return v
 
 
-class Job(BaseModel):
+class JobDTO(BaseModel):
     id: int
     location_index: int
     delivery: Optional[List[int]] = None
@@ -33,9 +35,9 @@ class Job(BaseModel):
         return v
 
 
-class VRPInput(BaseModel):
-    vehicles: List[Vehicle]
-    jobs: List[Job]
+class VRPInputDTO(BaseModel):
+    vehicles: List[VehicleDTO]
+    jobs: List[JobDTO]
     matrix: List[List[int]]
     
     @validator('matrix')
@@ -50,19 +52,3 @@ class VRPInput(BaseModel):
             max(v.start_index for v in self.vehicles),
             max(j.location_index for j in self.jobs)
         )
-
-
-class Route(BaseModel):
-    jobs: List[int] = []
-    delivery_duration: int = 0
-
-
-class VRPMetadata(BaseModel):
-    solve_time_seconds: float
-    algorithm: str = "OR-Tools"
-    objective_value: Optional[int] = None
-
-
-class VRPOutput(BaseModel):
-    total_delivery_duration: int
-    routes: Dict[str, Route]

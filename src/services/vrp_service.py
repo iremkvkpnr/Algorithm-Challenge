@@ -1,11 +1,14 @@
 from ortools.constraint_solver import routing_enums_pb2, pywrapcp
-import logging
 import time
 from typing import Dict, List
 
-from ..models.vrp_models import VRPInput, VRPOutput, Route
+from ..schemas.input import VRPInputDTO
+from ..schemas.output import VRPOutputDTO, RouteDTO, VRPMetadataDTO
+from ..models.domain import VRPProblem, VRPSolution, Vehicle, Job, Route
+from ..exceptions import VRPSolverError, VRPTimeoutError
+from ..utils.logger import get_service_logger
 
-logger = logging.getLogger(__name__)
+logger = get_service_logger()
 
 
 class VRPService:
@@ -13,44 +16,83 @@ class VRPService:
         self.time_limit = time_limit
         self.solution_limit = solution_limit
 
-    def solve(self, data: VRPInput) -> VRPOutput:
+    def solve(self, data: VRPInputDTO) -> VRPOutputDTO:
         start = time.time()
+        
+        try:
+            problem = self._convert_to_domain(data)
+            
+            demands = {j.location_index: (j.delivery[0] if j.delivery else 1) for j in problem.jobs}
+            services = {j.location_index: (j.service or 0) for j in problem.jobs}
 
-        demands = {j.location_index: (j.delivery[0] if j.delivery else 1) for j in data.jobs}
-        services = {j.location_index: (j.service or 0) for j in data.jobs}
+            manager, routing = self._create_model(problem)
 
-        manager, routing = self._create_model(data)
+            # if any service times -> register time callback 
+            time_cb = None
+            if any(j.service for j in problem.jobs):
+                time_cb = self._add_time_dimension(manager, routing, problem, services)
 
-        # if any service times -> register time callback 
-        time_cb = None
-        if any(j.service for j in data.jobs):
-            time_cb = self._add_time_dimension(manager, routing, data, services)
+            if any(v.capacity for v in problem.vehicles):
+                self._add_capacity_dimension(manager, routing, problem, demands)
 
-        if any(v.capacity for v in data.vehicles):
-            self._add_capacity_dimension(manager, routing, data, demands)
+            # time_cb (travel+service) if present
+            if time_cb is not None:
+                routing.SetArcCostEvaluatorOfAllVehicles(time_cb)
+            else:
+                self._set_distance_evaluator(manager, routing, problem.matrix)
 
-        # time_cb (travel+service) if present
-        if time_cb is not None:
-            routing.SetArcCostEvaluatorOfAllVehicles(time_cb)
-        else:
-            self._set_distance_evaluator(manager, routing, data.matrix)
+            params = self._search_parameters()
+            solution = routing.SolveWithParameters(params)
+            
+            if not solution:
+                raise VRPSolverError("No solution found by OR-Tools solver")
 
-        params = self._search_parameters()
-        solution = routing.SolveWithParameters(params)
-        if not solution:
-            raise Exception("No solution found")
+            routes = self._extract_routes(manager, routing, solution, problem, demands, services)
+            self._validate_routes(routes, problem)
 
-        routes = self._extract_routes(manager, routing, solution, data, demands, services)
+            solve_time = time.time() - start
+            
+            if solve_time > self.time_limit:
+                logger.warning(f"Solver exceeded time limit: {solve_time:.2f}s > {self.time_limit}s")
 
-        self._validate_routes(routes, data)
+            total = sum(r.delivery_duration for r in routes.values())
 
-        # Use sum of route durations for consistency
-        total = sum(r.delivery_duration for r in routes.values())
+            logger.info("Solved in %.2fs, total=%s", solve_time, total)
+            
+            return self._convert_to_output_dto(routes, total, solve_time, solution.ObjectiveValue())
+            
+        except VRPSolverError:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in VRP solver: {str(e)}")
+            raise VRPSolverError(f"Solver failed: {str(e)}")
 
-        logger.info("Solved in %.2fs, total=%s", time.time() - start, total)
-        return VRPOutput(total_delivery_duration=total, routes=routes)
+    def _convert_to_domain(self, data: VRPInputDTO) -> VRPProblem:
+        vehicles = [Vehicle(id=v.id, start_index=v.start_index, capacity=v.capacity) for v in data.vehicles]
+        jobs = [Job(id=j.id, location_index=j.location_index, delivery=j.delivery, service=j.service) for j in data.jobs]
+        return VRPProblem(vehicles=vehicles, jobs=jobs, matrix=data.matrix)
+    
+    def _convert_to_output_dto(self, routes: Dict[str, Route], total: int, solve_time: float, objective_value: int) -> VRPOutputDTO:
+        route_dtos = {}
+        for vehicle_id, route in routes.items():
+            route_dtos[vehicle_id] = RouteDTO(
+                jobs=route.jobs,
+                delivery_duration=route.delivery_duration
+            )
+        
+        metadata = VRPMetadataDTO(
+            solve_time_seconds=solve_time,
+            algorithm="OR-Tools",
+            objective_value=objective_value
+        )
+        
+        return VRPOutputDTO(
+            total_delivery_duration=total,
+            routes=route_dtos,
+            metadata=metadata
+        )
 
-    def _create_model(self, data: VRPInput):
+    def _create_model(self, data: VRPProblem):
         n_loc = len(data.matrix)
         n_veh = len(data.vehicles)
         starts = [v.start_index for v in data.vehicles]
@@ -66,7 +108,7 @@ class VRPService:
         routing.SetArcCostEvaluatorOfAllVehicles(cb_idx)
         return cb_idx
 
-    def _add_capacity_dimension(self, manager, routing, data: VRPInput, demands: Dict[int, int]):
+    def _add_capacity_dimension(self, manager, routing, data: VRPProblem, demands: Dict[int, int]):
         def demand_cb(index):
             node = manager.IndexToNode(index)
             return demands.get(node, 0)
@@ -75,7 +117,7 @@ class VRPService:
         caps = [v.capacity[0] if v.capacity else total_demand for v in data.vehicles]
         routing.AddDimensionWithVehicleCapacity(demand_idx, 0, caps, True, "Capacity")
 
-    def _add_time_dimension(self, manager, routing, data: VRPInput, services: Dict[int, int]):
+    def _add_time_dimension(self, manager, routing, data: VRPProblem, services: Dict[int, int]):
         def time_cb(from_index, to_index):
             f = manager.IndexToNode(from_index)
             t = manager.IndexToNode(to_index)
@@ -94,7 +136,7 @@ class VRPService:
         params.solution_limit = self.solution_limit
         return params
 
-    def _extract_routes(self, manager, routing, solution, data: VRPInput, demands: Dict[int, int], services: Dict[int, int]) -> Dict[str, Route]:
+    def _extract_routes(self, manager, routing, solution, data: VRPProblem, demands: Dict[int, int], services: Dict[int, int]) -> Dict[str, Route]:
         loc_jobs: Dict[int, List] = {}
         for job in data.jobs:
             loc_jobs.setdefault(job.location_index, []).append(job)
@@ -141,7 +183,7 @@ class VRPService:
             )
         return out
 
-    def _validate_routes(self, routes: Dict[str, Route], data: VRPInput):
+    def _validate_routes(self, routes: Dict[str, Route], data: VRPProblem):
         assigned = [j for r in routes.values() for j in r.jobs]
         if set(assigned) != set(job.id for job in data.jobs):
             missing = set(job.id for job in data.jobs) - set(assigned)

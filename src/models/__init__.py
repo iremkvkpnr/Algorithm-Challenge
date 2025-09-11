@@ -1,5 +1,5 @@
-"""VRP Challenge data models."""
+"""Models package."""
 
-from .vrp_models import Vehicle, Job, VRPInput, Route, VRPOutput
+from .domain import Vehicle, Job, VRPProblem, VRPSolution, Route
 
-__all__ = ['Vehicle', 'Job', 'VRPInput', 'Route', 'VRPOutput']
+__all__ = ['Vehicle', 'Job', 'VRPProblem', 'VRPSolution', 'Route']

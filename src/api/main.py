@@ -4,7 +4,8 @@ from pydantic import ValidationError
 import logging
 from typing import Dict
 
-from ..models.vrp_models import VRPInput, VRPOutput
+from ..schemas.input import VRPInputDTO
+from ..schemas.output import VRPOutputDTO
 from ..services.vrp_service import VRPService
 
 logging.basicConfig(level=logging.INFO)
@@ -32,8 +33,8 @@ async def root():
     return {"message": "VRP API is running", "version": "1.0.0"}
 
 
-@app.post("/solve", response_model=VRPOutput)
-async def solve_vrp(vrp_input: VRPInput) -> VRPOutput:
+@app.post("/solve", response_model=VRPOutputDTO)
+async def solve_vrp(vrp_input: VRPInputDTO) -> VRPOutputDTO:
     try:
         logger.info(f"Received VRP request: {len(vrp_input.vehicles)} vehicles, {len(vrp_input.jobs)} jobs")
         result = vrp_service.solve(vrp_input)
