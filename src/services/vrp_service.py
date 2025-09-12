@@ -1,20 +1,22 @@
 from ortools.constraint_solver import routing_enums_pb2, pywrapcp
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from ..schemas.input import VRPInputDTO
 from ..schemas.output import VRPOutputDTO, RouteDTO, VRPMetadataDTO
 from ..models.domain import VRPProblem, VRPSolution, Vehicle, Job, Route
 from ..exceptions import VRPSolverError, VRPTimeoutError
+from ..repositories.vrp_repository import VRPRepository
 from ..utils.logger import get_service_logger
 
 logger = get_service_logger()
 
 
 class VRPService:
-    def __init__(self, time_limit: int = 30, solution_limit: int = 100):
+    def __init__(self, time_limit: int = 30, solution_limit: int = 100, repository: Optional[VRPRepository] = None):
         self.time_limit = time_limit
         self.solution_limit = solution_limit
+        self.repository = repository or VRPRepository()
 
     def solve(self, data: VRPInputDTO) -> VRPOutputDTO:
         start = time.time()
@@ -59,7 +61,18 @@ class VRPService:
 
             logger.info("Solved in %.2fs, total=%s", solve_time, total)
             
-            return self._convert_to_output_dto(routes, total, solve_time, solution.ObjectiveValue())
+            result = self._convert_to_output_dto(routes, total, solve_time, solution.ObjectiveValue())
+            
+            try:
+                problem = self._convert_to_domain(data)
+                vehicle_ids = self.repository.save_vehicles(problem.vehicles)
+                job_ids = self.repository.save_jobs(problem.jobs)
+                solution_id = self.repository.save_solution(result, data, vehicle_ids, job_ids)
+                logger.info(f"Solution saved to MongoDB with id: {solution_id}")
+            except Exception as e:
+                logger.warning(f"Failed to save solution to MongoDB: {str(e)}")
+            
+            return result
             
         except VRPSolverError:
             raise
