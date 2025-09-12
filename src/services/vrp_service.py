@@ -77,7 +77,8 @@ class VRPService:
         for vehicle_id, route in routes.items():
             route_dtos[vehicle_id] = RouteDTO(
                 jobs=route.jobs,
-                delivery_duration=route.delivery_duration
+                delivery_duration=route.delivery_duration,
+                capacity_used=route.capacity_used
             )
         
         metadata = VRPMetadataDTO(
@@ -187,7 +188,8 @@ class VRPService:
 
             out[str(vehicle.id)] = Route(
                 jobs=jobs_seq,
-                delivery_duration=travel + service_sum
+                delivery_duration=travel + service_sum,
+                capacity_used=capacity_used
             )
         return out
 

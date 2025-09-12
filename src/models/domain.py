@@ -36,6 +36,7 @@ class VRPProblem:
 class Route:
     jobs: List[int]
     delivery_duration: int
+    capacity_used: int = 0
 
 
 @dataclass
