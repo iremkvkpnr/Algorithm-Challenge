@@ -125,7 +125,15 @@ class VRPService:
             service = services.get(t, 0)
             return travel + service
         idx = routing.RegisterTransitCallback(time_cb)
-        routing.AddDimension(idx, 30000, 30000, False, "Time")
+        
+        # Max routing calculate 
+        max_travel = max(
+        sum(row) for row in data.matrix
+        )  
+        max_service = sum(services.values())  
+        horizon_max = max_travel + max_service
+        slack_max = int(horizon_max * 0.1)  # %10 slack
+        routing.AddDimension(idx,slack_max, horizon_max, False, "Time")
         return idx
 
     def _search_parameters(self):
