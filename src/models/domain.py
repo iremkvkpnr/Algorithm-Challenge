@@ -37,6 +37,10 @@ class Route:
     jobs: List[int]
     delivery_duration: int
     capacity_used: int = 0
+    total_service_time: int = 0
+    total_distance: int = 0
+    start_location: int = 0
+    end_location: int = 0
 
 
 @dataclass

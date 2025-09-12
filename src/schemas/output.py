@@ -5,9 +5,13 @@ from pydantic import BaseModel
 
 
 class RouteDTO(BaseModel):
-    jobs: List[int] = []
-    delivery_duration: int = 0
-    capacity_used: int = 0
+    jobs: List[int]
+    delivery_duration: int
+    capacity_used: int
+    total_service_time: int
+    total_distance: int
+    start_location: int
+    end_location: int = 0
 
 
 class VRPMetadataDTO(BaseModel):
