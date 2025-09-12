@@ -11,7 +11,7 @@ from ..deps import get_vrp_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/vrp", tags=["VRP"])
+router = APIRouter(tags=["VRP"])
 
 
 @router.post("/solve", response_model=VRPOutputDTO)
