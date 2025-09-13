@@ -7,8 +7,8 @@ import logging
 from .services.vrp_service import VRPService
 from .repositories.vrp_repository import VRPRepository
 from .config.database import db_config
-from .exceptions import (
-    VRPException,
+from .exceptions import VRPException
+from .exceptions.handlers import (
     vrp_exception_handler,
     general_exception_handler,
     validation_exception_handler

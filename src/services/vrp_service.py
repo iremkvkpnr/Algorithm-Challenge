@@ -5,8 +5,12 @@ from typing import Dict, List, Optional
 from ..schemas.input import VRPInputDTO
 from ..schemas.output import VRPOutputDTO, RouteDTO, VRPMetadataDTO
 from ..models.domain import VRPProblem, VRPSolution, Vehicle, Job, Route
-from ..exceptions import VRPSolverError, VRPTimeoutError
+from ..exceptions import (
+    VRPSolverError, VRPTimeoutError, VRPValidationError, VRPDatabaseError,
+    ErrorCode
+)
 from ..repositories.vrp_repository import VRPRepository
+from ..validators.vrp_validator import VRPValidator
 from ..utils.logger import get_service_logger
 
 logger = get_service_logger()
@@ -17,11 +21,14 @@ class VRPService:
         self.time_limit = time_limit
         self.solution_limit = solution_limit
         self.repository = repository or VRPRepository()
+        self.validator = VRPValidator()
 
     def solve(self, data: VRPInputDTO) -> VRPOutputDTO:
         start = time.time()
         
         try:
+            self.validator.validate_request(data)
+            
             problem = self._convert_to_domain(data)
             
             demands = {j.location_index: (j.delivery[0] if j.delivery else 1) for j in problem.jobs}
@@ -47,7 +54,10 @@ class VRPService:
             solution = routing.SolveWithParameters(params)
             
             if not solution:
-                raise VRPSolverError("No solution found by OR-Tools solver")
+                raise VRPSolverError(
+                    ErrorCode.NO_SOLUTION_FOUND,
+                    details={'solver': 'OR-Tools', 'vehicles': len(problem.vehicles), 'jobs': len(problem.jobs)}
+                )
 
             routes = self._extract_routes(manager, routing, solution, problem, demands, services)
             self._validate_routes(routes, problem)
@@ -56,6 +66,10 @@ class VRPService:
             
             if solve_time > self.time_limit:
                 logger.warning(f"Solver exceeded time limit: {solve_time:.2f}s > {self.time_limit}s")
+                raise VRPTimeoutError(
+                    timeout_seconds=self.time_limit,
+                    message=f"Solver completed in {solve_time:.2f}s, limit: {self.time_limit}s"
+                )
 
             total = sum(r.delivery_duration for r in routes.values())
 
@@ -64,7 +78,6 @@ class VRPService:
             result = self._convert_to_output_dto(routes, total, solve_time, solution.ObjectiveValue())
             
             try:
-                problem = self._convert_to_domain(data)
                 vehicle_ids = self.repository.save_vehicles(problem.vehicles)
                 job_ids = self.repository.save_jobs(problem.jobs)
                 solution_id = self.repository.save_solution(result, data, vehicle_ids, job_ids)
@@ -74,11 +87,17 @@ class VRPService:
             
             return result
             
-        except VRPSolverError:
+        except (VRPSolverError, VRPValidationError, VRPTimeoutError):
             raise
         except Exception as e:
-            logger.error(f"Unexpected error in VRP solver: {str(e)}")
-            raise VRPSolverError(f"Solver failed: {str(e)}")
+            logger.error(f"Unexpected error in VRP solver: {str(e)}", exc_info=True)
+            raise VRPSolverError(
+                ErrorCode.SOLVER_ERROR,
+                details={
+                    'exception_type': type(e).__name__,
+                    'original_message': str(e)
+                }
+            )
 
     def _convert_to_domain(self, data: VRPInputDTO) -> VRPProblem:
         vehicles = [Vehicle(id=v.id, start_index=v.start_index, capacity=v.capacity) for v in data.vehicles]
@@ -110,18 +129,40 @@ class VRPService:
             metadata=metadata
         )
 
+    def _augment_matrix_with_sink(self, matrix: List[List[int]]):
+        n = len(matrix)
+        # new matrix with sink node
+        new_matrix = []
+        for row in matrix:
+            new_matrix.append(row + [0])  
+        new_matrix.append([0] * (n + 1)) 
+        sink_index = n
+        return new_matrix, sink_index
+
     def _create_model(self, data: VRPProblem):
         n_loc = len(data.matrix)
         n_veh = len(data.vehicles)
-        starts = [v.start_index for v in data.vehicles]
-        ends = starts[:]  # vehicles end at start 
-        mgr = pywrapcp.RoutingIndexManager(n_loc, n_veh, starts, ends)
+
+        starts = [int(v.start_index) for v in data.vehicles]
+
+        matrix, sink_index = self._augment_matrix_with_sink(data.matrix)
+
+        ends = [int(sink_index)] * n_veh
+
+        self._original_matrix = data.matrix
+        self._matrix = matrix
+        self._sink_index = sink_index
+
+        logger.debug("Creating RoutingIndexManager with n_nodes=%s, n_veh=%s, starts=%s, ends=%s",
+                     len(matrix), n_veh, starts, ends)
+
+        mgr = pywrapcp.RoutingIndexManager(len(matrix), n_veh, starts, ends)
         routing = pywrapcp.RoutingModel(mgr)
         return mgr, routing
 
     def _set_distance_evaluator(self, manager, routing, matrix: List[List[int]]):
         def dist_cb(from_index, to_index):
-            return matrix[manager.IndexToNode(from_index)][manager.IndexToNode(to_index)]
+            return self._matrix[manager.IndexToNode(from_index)][manager.IndexToNode(to_index)]
         cb_idx = routing.RegisterTransitCallback(dist_cb)
         routing.SetArcCostEvaluatorOfAllVehicles(cb_idx)
         return cb_idx
@@ -129,6 +170,9 @@ class VRPService:
     def _add_capacity_dimension(self, manager, routing, data: VRPProblem, demands: Dict[int, int]):
         def demand_cb(index):
             node = manager.IndexToNode(index)
+
+            if node == self._sink_index:
+                return 0
             return demands.get(node, 0)
         demand_idx = routing.RegisterUnaryTransitCallback(demand_cb)
         total_demand = sum(demands.values()) or 1_000_000
@@ -139,14 +183,15 @@ class VRPService:
         def time_cb(from_index, to_index):
             f = manager.IndexToNode(from_index)
             t = manager.IndexToNode(to_index)
-            travel = data.matrix[f][t]
-            service = services.get(t, 0)
+
+            travel = self._matrix[f][t]
+
+            service = 0 if t == self._sink_index else services.get(t, 0)
             return travel + service
         idx = routing.RegisterTransitCallback(time_cb)
         
-        # Max routing calculate 
         max_travel = max(
-        sum(row) for row in data.matrix
+        sum(row) for row in self._original_matrix
         )  
         max_service = sum(services.values())  
         horizon_max = max_travel + max_service
@@ -174,31 +219,36 @@ class VRPService:
             service_sum = 0
             capacity_used = 0
             start_index = vehicle.start_index
-            end_index = start_index
+            end_index = start_index  # default to start if no moves
 
             index = routing.Start(v_idx)
+            prev_node = manager.IndexToNode(index)
 
-            start_node = manager.IndexToNode(index)
-            if start_node in loc_jobs:
-                for j in loc_jobs[start_node]:
+            if prev_node in loc_jobs:
+                for j in loc_jobs[prev_node]:
                     jobs_seq.append(j.id)
-                    capacity_used += demands.get(start_node, 0)
+                    capacity_used += demands.get(prev_node, 0)
 
             while not routing.IsEnd(index):
                 from_node = manager.IndexToNode(index)
                 next_index = solution.Value(routing.NextVar(index))
                 to_node = manager.IndexToNode(next_index)
 
-                if 0 <= from_node < len(data.matrix) and 0 <= to_node < len(data.matrix):
-                    travel += data.matrix[from_node][to_node]
+                if not routing.IsEnd(next_index) or to_node != self._sink_index:
+                    if 0 <= from_node < len(data.matrix) and 0 <= to_node < len(data.matrix):
+                        travel += data.matrix[from_node][to_node]
 
-                if not routing.IsEnd(next_index) and to_node in loc_jobs:
+                if not routing.IsEnd(next_index) and to_node != self._sink_index and to_node in loc_jobs:
                     for j in loc_jobs[to_node]:
                         jobs_seq.append(j.id)
                         capacity_used += demands.get(to_node, 0)
                         service_sum += services.get(to_node, 0)
 
-                if routing.IsEnd(next_index):
+                # Update end location -> use the last  location before sink
+                if not routing.IsEnd(next_index) and to_node != self._sink_index:
+                    end_index = to_node
+                elif routing.IsEnd(next_index) and to_node == self._sink_index:
+
                     end_index = from_node
 
                 index = next_index
@@ -215,15 +265,4 @@ class VRPService:
         return out
 
     def _validate_routes(self, routes: Dict[str, Route], data: VRPProblem):
-        assigned = [j for r in routes.values() for j in r.jobs]
-        if set(assigned) != set(job.id for job in data.jobs):
-            missing = set(job.id for job in data.jobs) - set(assigned)
-            raise Exception(f"Job assignment mismatch. Missing: {missing}")
-
-        for v in data.vehicles:
-            if v.capacity:
-                r = routes.get(str(v.id))
-                if r:
-                    capacity_used = sum(job.delivery[0] if job.delivery else 0 for job in data.jobs if job.id in r.jobs)
-                    if capacity_used > v.capacity[0]:
-                        raise Exception(f"Vehicle {v.id} capacity exceeded: {capacity_used} > {v.capacity[0]}")
+        self.validator.validate_solution(routes, data)
