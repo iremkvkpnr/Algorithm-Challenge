@@ -18,6 +18,7 @@ class VRPMetadata(BaseModel):
     solve_time_seconds: float
     algorithm: str = "OR-Tools"
     objective_value: Optional[int] = None
+    random_seed: int
 
 
 class VRPOutput(BaseModel):

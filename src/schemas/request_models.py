@@ -21,6 +21,7 @@ class VRPInput(BaseModel):
     vehicles: List[Vehicle] = Field(..., min_items=1, description="List of vehicles (at least one required)")
     jobs: List[Job] = Field(..., description="List of jobs to be delivered")
     matrix: List[List[int]] = Field(..., description="Distance matrix between locations")
+    random_seed: Optional[int] = Field(None, description="Random seed for reproducible results")
         
     @validator('vehicles')
     def validate_unique_vehicle_ids(cls, v):
