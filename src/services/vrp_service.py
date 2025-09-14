@@ -1,5 +1,6 @@
 from ortools.constraint_solver import routing_enums_pb2, pywrapcp
 import time
+import os
 from typing import Dict, List, Optional
 
 from ..schemas.request_models import VRPInput
@@ -16,14 +17,17 @@ logger = get_service_logger()
 
 
 class VRPService:
-    def __init__(self, time_limit: int = 30, solution_limit: int = 100, repository: Optional[VRPRepository] = None):
-        self.time_limit = time_limit
-        self.solution_limit = solution_limit
+    def __init__(self, time_limit: int = None, solution_limit: int = None, random_seed: int = None, repository: Optional[VRPRepository] = None):
+        self.time_limit = time_limit if time_limit is not None else int(os.getenv("VRP_TIME_LIMIT", 30))
+        self.solution_limit = solution_limit if solution_limit is not None else int(os.getenv("VRP_SOLUTION_LIMIT", 100))
+        self.random_seed = random_seed if random_seed is not None else int(os.getenv("VRP_RANDOM_SEED", 0))
         self.repository = repository or VRPRepository()
         self.validator = BusinessValidator()
 
     def solve(self, data: VRPInput) -> VRPOutput:
         start = time.time()
+        
+        effective_random_seed = getattr(data, 'random_seed', None) or self.random_seed
         
         try:
             self.validator.validate_business_rules(data)
@@ -69,10 +73,18 @@ class VRPService:
                 )
 
             total = sum(r.delivery_duration for r in routes.values())
+            objective_value = solution.ObjectiveValue()
+            
+            if objective_value and objective_value != total:
+                logger.warning(
+                    f"Objective value mismatch: OR-Tools objective={objective_value}, extracted total={total}, difference={abs(objective_value - total)}"
+                )
+            else:
+                logger.info(f"Objective values consistent: OR-Tools={objective_value}, extracted={total}")
 
             logger.info("Solved in %.2fs, total=%s", solve_time, total)
             
-            result = self._convert_to_output_dto(routes, total, solve_time, solution.ObjectiveValue())
+            result = self._convert_to_output_dto(routes, total, solve_time, objective_value, effective_random_seed)
             
 
             if self.repository:
@@ -100,11 +112,12 @@ class VRPService:
             )
 
     
-    def _convert_to_output_dto(self, routes: Dict[str, Route], total: int, solve_time: float, objective_value: int) -> VRPOutput:
+    def _convert_to_output_dto(self, routes: Dict[str, Route], total: int, solve_time: float, objective_value: int, effective_random_seed: int) -> VRPOutput:
         metadata = VRPMetadata(
             solve_time_seconds=solve_time,
             algorithm="OR-Tools",
-            objective_value=objective_value
+            objective_value=objective_value,
+            random_seed=effective_random_seed
         )
         
         return VRPOutput(
