@@ -1,0 +1,141 @@
+{
+	"info": {
+		"_postman_id": "2e7fe58f-1e82-448d-8d2b-96c2a14a45bd",
+		"name": "VRP API Collection",
+		"description": "Vehicle Routing Problem API test collection",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "31853077"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Solve VRP - Sample Input",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"vehicles\": [\n    {\n      \"id\": 1,\n      \"start_index\": 0,\n      \"capacity\": [\n        4\n      ]\n    },\n    {\n      \"id\": 2,\n      \"start_index\": 1,\n      \"capacity\": [\n        6\n      ]\n    },\n    {\n      \"id\": 3,\n      \"start_index\": 2,\n      \"capacity\": [\n        6\n      ]\n    }\n  ],\n  \"jobs\": [\n    {\n      \"id\": 1,\n      \"location_index\": 3,\n      \"delivery\": [\n        2\n      ],\n      \"service\": 327\n    },\n    {\n      \"id\": 2,\n      \"location_index\": 4,\n      \"delivery\": [\n        1\n      ],\n      \"service\": 391\n    },\n    {\n      \"id\": 3,\n      \"location_index\": 5,\n      \"delivery\": [\n        1\n      ],\n      \"service\": 297\n    },\n    {\n      \"id\": 4,\n      \"location_index\": 6,\n      \"delivery\": [\n        2\n      ],\n      \"service\": 234\n    },\n    {\n      \"id\": 5,\n      \"location_index\": 7,\n      \"delivery\": [\n        1\n      ],\n      \"service\": 357\n    },\n    {\n      \"id\": 6,\n      \"location_index\": 8,\n      \"delivery\": [\n        1\n      ],\n      \"service\": 407\n    },\n    {\n      \"id\": 7,\n      \"location_index\": 9,\n      \"delivery\": [\n        1\n      ],\n      \"service\": 382\n    }\n  ],\n  \"matrix\": [\n    [\n      0,\n      516,\n      226,\n      853,\n      1008,\n      1729,\n      346,\n      1353,\n      1554,\n      827\n    ],\n    [\n      548,\n      0,\n      474,\n      1292,\n      1442,\n      2170,\n      373,\n      1801,\n      1989,\n      1068\n    ],\n    [\n      428,\n      466,\n      0,\n      1103,\n      1175,\n      1998,\n      226,\n      1561,\n      1715,\n      947\n    ],\n    [\n      663,\n      1119,\n      753,\n      0,\n      350,\n      1063,\n      901,\n      681,\n      814,\n      1111\n    ],\n    [\n      906,\n      1395,\n      1003,\n      292,\n      0,\n      822,\n      1058,\n      479,\n      600,\n      1518\n    ],\n    [\n      1488,\n      1994,\n      1591,\n      905,\n      776,\n      0,\n      1746,\n      603,\n      405,\n      1676\n    ],\n    [\n      521,\n      357,\n      226,\n      1095,\n      1167,\n      1987,\n      0,\n      1552,\n      1705,\n      1051\n    ],\n    [\n      1092,\n      1590,\n      1191,\n      609,\n      485,\n      627,\n      1353,\n      0,\n      422,\n      1583\n    ],\n    [\n      1334,\n      1843,\n      1436,\n      734,\n      609,\n      396,\n      1562,\n      421,\n      0,\n      1745\n    ],\n    [\n      858,\n      1186,\n      864,\n      1042,\n      1229,\n      1879,\n      984,\n      1525,\n      1759,\n      0\n    ]\n  ]\n}\n"
+				},
+				"url": {
+					"raw": "{{base_url}}/solve",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"solve"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "Solve VRP - Sample Input",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"vehicles\": [\n    {\n      \"id\": 1,\n      \"start_index\": 0,\n      \"capacity\": [\n        4\n      ]\n    },\n    {\n      \"id\": 2,\n      \"start_index\": 1,\n      \"capacity\": [\n        6\n      ]\n    },\n    {\n      \"id\": 3,\n      \"start_index\": 2,\n      \"capacity\": [\n        6\n      ]\n    }\n  ],\n  \"jobs\": [\n    {\n      \"id\": 1,\n      \"location_index\": 3,\n      \"delivery\": [\n        2\n      ],\n      \"service\": 327\n    },\n    {\n      \"id\": 2,\n      \"location_index\": 4,\n      \"delivery\": [\n        1\n      ],\n      \"service\": 391\n    },\n    {\n      \"id\": 3,\n      \"location_index\": 5,\n      \"delivery\": [\n        1\n      ],\n      \"service\": 297\n    },\n    {\n      \"id\": 4,\n      \"location_index\": 6,\n      \"delivery\": [\n        2\n      ],\n      \"service\": 234\n    },\n    {\n      \"id\": 5,\n      \"location_index\": 7,\n      \"delivery\": [\n        1\n      ],\n      \"service\": 357\n    },\n    {\n      \"id\": 6,\n      \"location_index\": 8,\n      \"delivery\": [\n        1\n      ],\n      \"service\": 407\n    },\n    {\n      \"id\": 7,\n      \"location_index\": 9,\n      \"delivery\": [\n        1\n      ],\n      \"service\": 382\n    }\n  ],\n  \"matrix\": [\n    [\n      0,\n      516,\n      226,\n      853,\n      1008,\n      1729,\n      346,\n      1353,\n      1554,\n      827\n    ],\n    [\n      548,\n      0,\n      474,\n      1292,\n      1442,\n      2170,\n      373,\n      1801,\n      1989,\n      1068\n    ],\n    [\n      428,\n      466,\n      0,\n      1103,\n      1175,\n      1998,\n      226,\n      1561,\n      1715,\n      947\n    ],\n    [\n      663,\n      1119,\n      753,\n      0,\n      350,\n      1063,\n      901,\n      681,\n      814,\n      1111\n    ],\n    [\n      906,\n      1395,\n      1003,\n      292,\n      0,\n      822,\n      1058,\n      479,\n      600,\n      1518\n    ],\n    [\n      1488,\n      1994,\n      1591,\n      905,\n      776,\n      0,\n      1746,\n      603,\n      405,\n      1676\n    ],\n    [\n      521,\n      357,\n      226,\n      1095,\n      1167,\n      1987,\n      0,\n      1552,\n      1705,\n      1051\n    ],\n    [\n      1092,\n      1590,\n      1191,\n      609,\n      485,\n      627,\n      1353,\n      0,\n      422,\n      1583\n    ],\n    [\n      1334,\n      1843,\n      1436,\n      734,\n      609,\n      396,\n      1562,\n      421,\n      0,\n      1745\n    ],\n    [\n      858,\n      1186,\n      864,\n      1042,\n      1229,\n      1879,\n      984,\n      1525,\n      1759,\n      0\n    ]\n  ]\n}\n"
+						},
+						"url": {
+							"raw": "{{base_url}}/solve",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"solve"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "",
+					"header": [
+						{
+							"key": "date",
+							"value": "Sun, 14 Sep 2025 20:10:29 GMT"
+						},
+						{
+							"key": "server",
+							"value": "uvicorn"
+						},
+						{
+							"key": "content-length",
+							"value": "594"
+						},
+						{
+							"key": "content-type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"total_delivery_duration\": 6345,\n    \"routes\": {\n        \"1\": {\n            \"jobs\": [\n                7\n            ],\n            \"delivery_duration\": 1209,\n            \"capacity_used\": 1,\n            \"total_service_time\": 382,\n            \"total_distance\": 827,\n            \"start_location\": 0,\n            \"end_location\": 9\n        },\n        \"2\": {\n            \"jobs\": [\n                4\n            ],\n            \"delivery_duration\": 607,\n            \"capacity_used\": 2,\n            \"total_service_time\": 234,\n            \"total_distance\": 373,\n            \"start_location\": 1,\n            \"end_location\": 6\n        },\n        \"3\": {\n            \"jobs\": [\n                1,\n                2,\n                5,\n                6,\n                3\n            ],\n            \"delivery_duration\": 4529,\n            \"capacity_used\": 6,\n            \"total_service_time\": 1779,\n            \"total_distance\": 2750,\n            \"start_location\": 2,\n            \"end_location\": 5\n        }\n    },\n    \"metadata\": {\n        \"solve_time_seconds\": 0.04520845413208008,\n        \"algorithm\": \"OR-Tools\",\n        \"objective_value\": 6345,\n        \"random_seed\": 0\n    }\n}"
+				}
+			]
+		},
+		{
+			"name": "Invalid Request Test",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"vehicles\": [],\n  \"jobs\": [],\n  \"matrix\": []\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/solve",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"solve"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "solution_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
