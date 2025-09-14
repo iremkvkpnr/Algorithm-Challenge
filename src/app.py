@@ -18,7 +18,10 @@ logger = get_service_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import time
     logger.info("Starting VRP API")
+    
+    app.state.start_time = time.time()
     
     repository = None
     try:
@@ -28,7 +31,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Database not available, running without persistence: {e}")
     
-    app.state.vrp_service = VRPService(repository=repository)
+
+    import os
+    time_limit = int(os.getenv("VRP_TIME_LIMIT", 30))
+    solution_limit = int(os.getenv("VRP_SOLUTION_LIMIT", 100))
+    random_seed = int(os.getenv("VRP_RANDOM_SEED", 0))
+    
+    app.state.vrp_service = VRPService(
+        time_limit=time_limit,
+        solution_limit=solution_limit,
+        random_seed=random_seed,
+        repository=repository
+    )
+    logger.info(f"VRP service initialized with time_limit={time_limit}, solution_limit={solution_limit}, random_seed={random_seed}")
     logger.info("VRP service ready")
     
     yield
