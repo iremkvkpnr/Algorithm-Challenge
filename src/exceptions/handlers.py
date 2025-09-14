@@ -1,6 +1,5 @@
 """Exception handlers for VRP API."""
 
-import logging
 from typing import Any, Dict, Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -8,8 +7,9 @@ from fastapi.responses import JSONResponse
 from .error_codes import ErrorCode
 from .error_messages import ErrorMessage
 from .vrp_exceptions import VRPException
+from ..utils.logger import get_service_logger
 
-logger = logging.getLogger(__name__)
+logger = get_service_logger()
 
 
 def create_error_response(error_code: ErrorCode, message: str, details: Optional[Dict[str, Any]] = None, 
@@ -36,25 +36,11 @@ def create_error_response(error_code: ErrorCode, message: str, details: Optional
 def get_status_code_for_error(error_code: ErrorCode) -> int:
     status_map = {
         ErrorCode.VALIDATION_ERROR: 400,
-        ErrorCode.INVALID_VEHICLE_DATA: 400,
-        ErrorCode.INVALID_JOB_DATA: 400,
-        ErrorCode.INVALID_MATRIX_DATA: 400,
-        ErrorCode.INVALID_LOCATION_INDEX: 400,
-        ErrorCode.CAPACITY_EXCEEDED: 400,
-        
         ErrorCode.TIMEOUT_ERROR: 408,
-        
         ErrorCode.SOLVER_ERROR: 422,
-        ErrorCode.NO_SOLUTION_FOUND: 422,
-        ErrorCode.SOLVER_INITIALIZATION_ERROR: 422,
-        ErrorCode.ROUTE_VALIDATION_ERROR: 422,
-        
-        ErrorCode.DATABASE_CONNECTION_ERROR: 503,
-        ErrorCode.DATABASE_SAVE_ERROR: 500,
-        ErrorCode.DATABASE_QUERY_ERROR: 500,
-        
+        ErrorCode.SOLUTION_ERROR: 422,
+        ErrorCode.DATABASE_ERROR: 503,
         ErrorCode.INTERNAL_ERROR: 500,
-        ErrorCode.VRP_ERROR: 500,
     }
     return status_map.get(error_code, 500)
 

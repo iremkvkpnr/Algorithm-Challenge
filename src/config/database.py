@@ -3,7 +3,7 @@ import os
 from typing import Optional
 from pymongo import MongoClient
 from ..utils.logger import get_service_logger
-from ..exceptions import VRPDatabaseError, ErrorCode
+from ..exceptions import VRPSystemError, ErrorCode
 
 logger = get_service_logger()
 
@@ -25,13 +25,9 @@ class DatabaseConfig:
             return client
         except Exception as e:
             logger.error(f"MongoDB connection failed: {str(e)}", exc_info=True)
-            raise VRPDatabaseError(
-                ErrorCode.DATABASE_CONNECTION_ERROR,
-                details={
-                    'mongo_uri': self.mongo_uri,
-                    'timeout': self.connection_timeout,
-                    'error': str(e)
-                }
+            raise VRPSystemError(
+                ErrorCode.DATABASE_ERROR,
+                f"Failed to connect to MongoDB at {self.mongo_uri} (timeout: {self.connection_timeout}s): {str(e)}"
             )
     
     def get_database(self, client: MongoClient):
@@ -44,16 +40,13 @@ class DatabaseConfig:
             else:
                 self._client.admin.command('ping')
             logger.info("Database connection test successful")
-        except VRPDatabaseError:
+        except VRPSystemError:
             raise
         except Exception as e:
             logger.error(f"Database connection test failed: {str(e)}", exc_info=True)
-            raise VRPDatabaseError(
-                ErrorCode.DATABASE_CONNECTION_ERROR,
-                details={
-                    'operation': 'test_connection',
-                    'error': str(e)
-                }
+            raise VRPSystemError(
+                ErrorCode.DATABASE_ERROR,
+                f"Database connection test failed: {str(e)}"
             )
     
     def close_connection(self):

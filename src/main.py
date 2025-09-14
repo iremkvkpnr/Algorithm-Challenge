@@ -2,9 +2,10 @@
 
 import argparse
 import uvicorn
-import logging
 
-logger = logging.getLogger(__name__)
+from .utils.logger import get_service_logger
+
+logger = get_service_logger()
 
 def main():
     parser = argparse.ArgumentParser(description='VRP Challenge HTTP Microservice')

@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from pydantic import ValidationError
 import logging
@@ -13,15 +12,22 @@ from .exceptions.handlers import (
     general_exception_handler,
     validation_exception_handler
 )
+from .utils.logger import get_service_logger
 
-logger = logging.getLogger("vrp.api")
+logger = get_service_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
     logger.info("Starting VRP API")
-    db_config.test_connection()
-    repository = VRPRepository()
+    
+    repository = None
+    try:
+        db_config.test_connection()
+        repository = VRPRepository()
+        logger.info("Database connection established")
+    except Exception as e:
+        logger.warning(f"Database not available, running without persistence: {e}")
+    
     app.state.vrp_service = VRPService(repository=repository)
     logger.info("VRP service ready")
     
@@ -30,7 +36,10 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down VRP API")
     if hasattr(app.state, 'vrp_service') and app.state.vrp_service.repository:
         app.state.vrp_service.repository.close_connection()
-    db_config.close_connection()
+    try:
+        db_config.close_connection()
+    except Exception:
+        pass
 
 
 def create_app() -> FastAPI:
@@ -39,13 +48,6 @@ def create_app() -> FastAPI:
         description="HTTP microservice for Vehicle Routing Problem",
         version="1.0.0",
         lifespan=lifespan
-    )
-
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["GET", "POST"],
-        allow_headers=["*"],
     )
 
     logging.basicConfig(level=logging.INFO)
